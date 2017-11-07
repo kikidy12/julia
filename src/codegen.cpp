@@ -3693,8 +3693,10 @@ static void emit_stmtpos(jl_codectx_t &ctx, jl_value_t *expr)
     }
     else if (head == leave_sym) {
         assert(jl_is_long(args[0]));
-        ctx.builder.CreateCall(prepare_call(jlleave_func),
-                           ConstantInt::get(T_int32, jl_unbox_long(args[0])));
+        int nlevel = jl_unbox_long(args[0]);
+        for (int i = 0; i < nlevel; i++) {
+            ctx.builder.CreateCall(prepare_call(jlleave_func));
+        }
     }
     else {
         if (!jl_is_method(ctx.linfo->def.method)) {
@@ -5789,21 +5791,7 @@ static std::unique_ptr<Module> emit_function(
             Value *isz = ctx.builder.CreateICmpEQ(sj, ConstantInt::get(T_int32, 0));
             BasicBlock *tryblk = BasicBlock::Create(jl_LLVMContext, "try", f);
             BasicBlock *handlr = handle_label(lname, false);
-#ifdef _OS_WINDOWS_
-            BasicBlock *cond_resetstkoflw_blk = BasicBlock::Create(jl_LLVMContext, "cond_resetstkoflw", f);
-            BasicBlock *resetstkoflw_blk = BasicBlock::Create(jl_LLVMContext, "resetstkoflw", f);
-            ctx.builder.CreateCondBr(isz, tryblk, cond_resetstkoflw_blk);
-            ctx.builder.SetInsertPoint(cond_resetstkoflw_blk);
-            ctx.builder.CreateCondBr(ctx.builder.CreateICmpEQ(
-                                     maybe_decay_untracked(literal_pointer_val(ctx, jl_stackovf_exception)),
-                                     ctx.builder.CreateLoad(emit_exc_in_transit(ctx), /*isvolatile*/true)),
-                                 resetstkoflw_blk, handlr);
-            ctx.builder.SetInsertPoint(resetstkoflw_blk);
-            ctx.builder.CreateCall(prepare_call(resetstkoflw_func), {});
-            ctx.builder.CreateBr(handlr);
-#else
             ctx.builder.CreateCondBr(isz, tryblk, handlr);
-#endif
             ctx.builder.SetInsertPoint(tryblk);
         }
         else {
@@ -6448,10 +6436,8 @@ static void init_julia_llvm_env(Module *m)
 #endif
 #endif
 
-    std::vector<Type*> lhargs(0);
-    lhargs.push_back(T_int32);
     jlleave_func =
-        Function::Create(FunctionType::get(T_void, lhargs, false),
+        Function::Create(FunctionType::get(T_void, {}, false),
                          Function::ExternalLinkage,
                          "jl_pop_handler", m);
     add_named_global(jlleave_func, &jl_pop_handler);
@@ -6590,7 +6576,7 @@ static void init_julia_llvm_env(Module *m)
 
     except_enter_func = Function::Create(FunctionType::get(T_int32, false),
                                          Function::ExternalLinkage,
-                                         "julia.except_enter");
+                                         "julia.except_enter_0");
     except_enter_func->addFnAttr(Attribute::ReturnsTwice);
     add_named_global(except_enter_func, (void*)NULL, /*dllimport*/false);
 

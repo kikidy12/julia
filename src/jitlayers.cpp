@@ -114,6 +114,7 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
         PM->add(createCFGSimplificationPass()); // Clean up disgusting code
 #if JL_LLVM_VERSION < 50000
         PM->add(createBarrierNoopPass());
+        PM->add(createEHOutliningPass());
         PM->add(createLowerExcHandlersPass());
         PM->add(createGCInvariantVerifierPass(false));
         PM->add(createLateLowerGCFramePass());
@@ -128,6 +129,7 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
 #endif
 #if JL_LLVM_VERSION >= 50000
         PM->add(createBarrierNoopPass());
+        PM->add(createEHOutliningPass());
         PM->add(createLowerExcHandlersPass());
         PM->add(createGCInvariantVerifierPass(false));
         PM->add(createLateLowerGCFramePass());
@@ -146,6 +148,7 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
     PM->add(createCFGSimplificationPass()); // Clean up disgusting code
     PM->add(createDeadInstEliminationPass());
     PM->add(createPromoteMemoryToRegisterPass()); // Kill useless allocas
+    PM->add(createEHOutliningPass());
 
     // Due to bugs and missing features LLVM < 5.0, does not properly propagate
     // our invariants. We need to do GC rooting here. This reduces the

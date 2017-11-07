@@ -1555,9 +1555,8 @@ JL_DLLEXPORT void JL_NORETURN jl_no_exc_handler(jl_value_t *e);
 
 #include "locks.h"   // requires jl_task_t definition
 
-STATIC_INLINE void jl_eh_restore_state(jl_handler_t *eh)
+STATIC_INLINE void jl_eh_restore_state_th(jl_ptls_t ptls, jl_handler_t *eh)
 {
-    jl_ptls_t ptls = jl_get_ptls_states();
     jl_task_t *current_task = ptls->current_task;
     // `eh` may not be `ptls->current_task->eh`. See `jl_pop_handler`
     // This function should **NOT** have any safepoint before the ones at the
@@ -1586,8 +1585,13 @@ STATIC_INLINE void jl_eh_restore_state(jl_handler_t *eh)
     }
 }
 
+STATIC_INLINE void jl_eh_restore_state(jl_handler_t *eh)
+{
+    jl_eh_restore_state_th(jl_get_ptls_states(), eh);
+}
+
 JL_DLLEXPORT void jl_enter_handler(jl_handler_t *eh);
-JL_DLLEXPORT void jl_pop_handler(int n);
+JL_DLLEXPORT void jl_pop_handler(void);
 
 #if defined(_OS_WINDOWS_)
 #if defined(_COMPILER_MINGW_)

@@ -205,9 +205,8 @@ JL_DLLEXPORT void jl_typeassert(jl_value_t *x, jl_value_t *t)
         jl_type_error("typeassert", t, x);
 }
 
-JL_DLLEXPORT void jl_enter_handler(jl_handler_t *eh)
+STATIC_INLINE void jl_enter_handler_th(jl_ptls_t ptls, jl_handler_t *eh)
 {
-    jl_ptls_t ptls = jl_get_ptls_states();
     jl_task_t *current_task = ptls->current_task;
     // Must have no safepoint
     eh->prev = current_task->eh;
@@ -225,15 +224,54 @@ JL_DLLEXPORT void jl_enter_handler(jl_handler_t *eh)
 #endif
 }
 
-JL_DLLEXPORT void jl_pop_handler(int n)
+JL_DLLEXPORT void jl_enter_handler(jl_handler_t *eh)
+{
+    jl_enter_handler_th(jl_get_ptls_states(), eh);
+}
+
+JL_DLLEXPORT void jl_pop_handler(void)
 {
     jl_ptls_t ptls = jl_get_ptls_states();
-    if (__unlikely(n <= 0))
-        return;
-    jl_handler_t *eh = ptls->current_task->eh;
-    while (--n > 0)
-        eh = eh->prev;
-    jl_eh_restore_state(eh);
+    jl_eh_restore_state(ptls->current_task->eh);
+}
+
+JL_DLLEXPORT int jl_catch_exception(void (*cb)(uintptr_t, uintptr_t, uintptr_t,
+                                               uintptr_t, uintptr_t),
+                                    uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4,
+                                    uintptr_t a5)
+{
+    jl_ptls_t ptls = jl_get_ptls_states();
+    jl_handler_t eh;
+    jl_enter_handler_th(ptls, &eh);
+    if (!jl_setjmp(eh.eh_ctx, 0)) {
+        cb(a1, a2, a3, a4, a5);
+        jl_eh_restore_state(&eh);
+        return 0;
+    }
+    jl_eh_restore_state_th(ptls, &eh);
+#ifdef _OS_WINDOWS_
+    if (ptls->exception_in_transit == jl_stackovf_exception)
+        _resetstkoflw();
+#endif
+    return 1;
+}
+
+JL_DLLEXPORT int jl_catch_exception_generic(int (*cb)(int, uintptr_t, uintptr_t, uintptr_t,
+                                                      uintptr_t, uintptr_t),
+                                            uintptr_t a1, uintptr_t a2, uintptr_t a3,
+                                            uintptr_t a4, uintptr_t a5)
+{
+    jl_ptls_t ptls = jl_get_ptls_states();
+    jl_handler_t eh;
+    jl_enter_handler_th(ptls, &eh);
+    int set = jl_setjmp(eh.eh_ctx, 0);
+#ifdef _OS_WINDOWS_
+    if (set && ptls->exception_in_transit == jl_stackovf_exception)
+        _resetstkoflw();
+#endif
+    int ret = cb(set, a1, a2, a3, a4, a5);
+    jl_eh_restore_state_th(ptls, &eh);
+    return ret;
 }
 
 JL_DLLEXPORT jl_value_t *jl_apply_with_saved_exception_state(jl_value_t **args, uint32_t nargs, int drop_exceptions)

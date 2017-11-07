@@ -107,14 +107,7 @@ static void ensure_enter_function(Module &M)
 }
 
 bool LowerExcHandlers::doInitialization(Module &M) {
-    except_enter_func = M.getFunction("julia.except_enter");
-    if (!except_enter_func)
-        return false;
     ensure_enter_function(M);
-    leave_func = M.getFunction("jl_pop_handler");
-    jlenter_func = M.getFunction("jl_enter_handler");
-    setjmp_func = M.getFunction(jl_setjmp_name);
-
 #if JL_LLVM_VERSION >= 50000
     auto T_pint8 = Type::getInt8PtrTy(M.getContext(), 0);
     lifetime_start = Intrinsic::getDeclaration(&M, Intrinsic::lifetime_start, { T_pint8 });
@@ -127,6 +120,14 @@ bool LowerExcHandlers::doInitialization(Module &M) {
 }
 
 bool LowerExcHandlers::runOnFunction(Function &F) {
+    Module &M = *F.getParent();
+
+    except_enter_func = M.getFunction("julia.except_enter");
+    if (!except_enter_func)
+        return false;
+    leave_func = M.getFunction("jl_pop_handler");
+    jlenter_func = M.getFunction("jl_enter_handler");
+    setjmp_func = M.getFunction(jl_setjmp_name);
     if (!except_enter_func)
         return false; // No EH frames in this module
 
@@ -162,7 +163,7 @@ bool LowerExcHandlers::runOnFunction(Function &F) {
                 EnterDepth[CI] = Depth++;
             else if (Callee == leave_func) {
                 LeaveDepth[CI] = Depth;
-                Depth -= cast<ConstantInt>(CI->getArgOperand(0))->getLimitedValue();
+                Depth--;
             }
             assert(Depth >= 0);
             if (Depth > MaxDepth)
@@ -223,16 +224,13 @@ bool LowerExcHandlers::runOnFunction(Function &F) {
     // Insert lifetime end intrinsics after every leave.
     for (auto it : LeaveDepth) {
         int StartDepth = it.second - 1;
-        int npops = cast<ConstantInt>(it.first->getArgOperand(0))->getLimitedValue();
-        for (int i = 0; i < npops; ++i) {
-            assert(StartDepth-i >= 0);
-            Value *lifetime_args[] = {
-                handler_sz64,
-                buffs[StartDepth-i]
-            };
-            auto LifetimeEnd = CallInst::Create(lifetime_end, lifetime_args);
-            LifetimeEnd->insertAfter(it.first);
-        }
+        assert(StartDepth >= 0);
+        Value *lifetime_args[] = {
+            handler_sz64,
+            buffs[StartDepth]
+        };
+        auto LifetimeEnd = CallInst::Create(lifetime_end, lifetime_args);
+        LifetimeEnd->insertAfter(it.first);
     }
     return true;
 }
