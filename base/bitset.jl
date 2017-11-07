@@ -15,15 +15,13 @@ very large integers), use [`Set`](@ref) instead.
 """
 BitSet(itr) = union!(BitSet(), itr)
 
-eltype(::Type{BitSet}) = Int
-similar(s::BitSet) = BitSet()
+empty(s::BitSet) = BitSet()
 copy(s1::BitSet) = copy!(BitSet(), s1)
 function copy!(dest::BitSet, src::BitSet)
     resize!(dest.bits, length(src.bits))
     copy!(dest.bits, src.bits)
     dest
 end
-eltype(s::BitSet) = Int
 sizehint!(s::BitSet, n::Integer) = (n > length(s.bits) && _resize0!(s.bits, n); s)
 
 # An internal function for setting the inclusion bit for a given integer n >= 0
