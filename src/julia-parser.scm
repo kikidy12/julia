@@ -177,6 +177,8 @@
 (define whitespace-newline #f)
 ; enable parsing `where` with high precedence
 (define where-enabled #t)
+; allow (x...), parsed as (... x). otherwise a deprecation warning is given (#24452)
+(define accept-dots-without-comma #f)
 
 (define current-filename 'none)
 
@@ -601,7 +603,9 @@
                   (if *deperror* "ERROR:" "WARNING:") " deprecated syntax \"" what "\""
                   (if (or (not s) (eq? current-filename 'none))
                       ""
-                      (string " at " current-filename ":" (input-port-line (if (port? s) s (ts:port s)))))
+                      (string " at " current-filename ":" (if (number? s)
+                                                              s
+                                                              (input-port-line (if (port? s) s (ts:port s))))))
                   "."
                   (if (equal? instead "")
                       ""
@@ -1044,7 +1048,9 @@
           ((not un)
            (error (string "\"" op "\" is not a unary operator")))
           (else
-           (let* ((arg  (parse-unary s))
+           (let* ((arg  (with-bindings
+                         ((accept-dots-without-comma #t))
+                         (parse-unary s)))
                   (args (if (and (pair? arg) (eq? (car arg) 'tuple))
                             (cons op (cdr arg))
                             (list op arg))))
@@ -1125,7 +1131,9 @@
                              (or (closing-token? next) (newline? next))))
                       op)
                      ((memq op '(& |::|))  (list op (parse-where s parse-call)))
-                     (else                 (list op (parse-unary-prefix s)))))
+                     (else                 (list op (with-bindings
+                                                     ((accept-dots-without-comma #t))
+                                                     (parse-unary-prefix s))))))
         (parse-atom s))))
 
 (define (parse-def s is-func)
@@ -2245,10 +2253,15 @@
                       (t  (require-token s)))
                  (cond ((eqv? t #\) )
                         (take-token s)
+                        ;; value in parentheses (x)
                         (if (and (pair? ex) (eq? (car ex) '...))
-                            ;; (ex...)
-                            `(tuple ,ex)
-                            ;; value in parentheses (x)
+                            (let ((lineno (input-port-line (ts:port s))))
+                              (if (or accept-dots-without-comma (eq? (peek-token s) '->))
+                                  ex
+                                  (begin (syntax-deprecation lineno
+                                                             (string "(" (deparse (cadr ex)) "...)")
+                                                             (string "(" (deparse (cadr ex)) "...,)"))
+                                         `(tuple ,ex))))
                             ex))
                        ((eq? t 'for)
                         (expect-space-before s 'for)

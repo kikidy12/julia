@@ -130,6 +130,8 @@ Language changes
   * Like `_`, variable names consisting only of underscores can be assigned,
     but accessing their values is deprecated ([#24221]).
 
+  * The syntax `(x...)` for constructing a tuple is deprecated; use `(x...,)` instead (#24452).
+
 Breaking changes
 ----------------
 
