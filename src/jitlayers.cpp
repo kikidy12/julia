@@ -137,6 +137,7 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
 #endif
         if (dump_native)
             PM->add(createMultiVersioningPass());
+        PM->add(createEHLoweringPass());
         return;
     }
     PM->add(createPropagateJuliaAddrspaces());
@@ -261,8 +262,11 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
     // Remove dead use of ptls
     PM->add(createDeadCodeEliminationPass());
     PM->add(createLowerPTLSPass(dump_native));
+    PM->add(createEHLoweringPass());
     // Clean up write barrier and ptls lowering
     PM->add(createCFGSimplificationPass());
+#else
+    PM->add(createEHLoweringPass());
 #endif
     PM->add(createCombineMulAddPass());
 }

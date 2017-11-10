@@ -14,6 +14,8 @@
 // The pass needs to be run early in the pipeline so that it's easier to do pattern matching
 // and to avoid buggy LLVM. So far it seems that `mem2reg` is OK as long as the stack slots
 // are properly marked with `volatile` before removed in this pass.
+// We also need to run this early so that there isn't any phi node on derived object pointers
+// which can mess up GC roots of output values.
 
 #include "llvm-version.h"
 #include "support/dtypes.h"
@@ -50,8 +52,8 @@
 // * Update alloc-opt pass
 // * Merge alloca
 // * Mark arg attributes
-// * Remove ptls workaround
 // * Fix backtrace (include try as dummy frame)
+// * Identify base value of inputs and outputs
 
 using namespace llvm;
 

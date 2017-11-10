@@ -235,10 +235,8 @@ JL_DLLEXPORT void jl_pop_handler(void)
     jl_eh_restore_state(ptls->current_task->eh);
 }
 
-JL_DLLEXPORT int jl_catch_exception(void (*cb)(uintptr_t, uintptr_t, uintptr_t,
-                                               uintptr_t, uintptr_t),
-                                    uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4,
-                                    uintptr_t a5)
+JL_DLLEXPORT int jl_catch_exception(void (*cb)(void*, void*, void*, void*, void*),
+                                    void *a1, void *a2, void *a3, void *a4, void *a5)
 {
     jl_ptls_t ptls = jl_get_ptls_states();
     jl_handler_t eh;
@@ -256,10 +254,8 @@ JL_DLLEXPORT int jl_catch_exception(void (*cb)(uintptr_t, uintptr_t, uintptr_t,
     return 1;
 }
 
-JL_DLLEXPORT int jl_catch_exception_generic(int (*cb)(int, uintptr_t, uintptr_t, uintptr_t,
-                                                      uintptr_t, uintptr_t),
-                                            uintptr_t a1, uintptr_t a2, uintptr_t a3,
-                                            uintptr_t a4, uintptr_t a5)
+JL_DLLEXPORT int jl_catch_exception_generic(int (*cb)(int, void*, void*, void*, void*, void*),
+                                            void *a1, void *a2, void *a3, void *a4, void *a5)
 {
     jl_ptls_t ptls = jl_get_ptls_states();
     jl_handler_t eh;
